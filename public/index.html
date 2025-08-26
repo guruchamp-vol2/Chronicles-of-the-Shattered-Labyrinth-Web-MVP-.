@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chronicles of the Shattered Labyrinth — Web MVP</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="center">
+        <h1>Chronicles of the Shattered Labyrinth</h1>
+        <p class="subtitle">Roguelike action • Daily‑reshaping realms • Legacy progression</p>
+      </header>
+
+      <!-- Settlement Hub / Meta progression -->
+      <section id="hub" class="panel">
+        <div class="hub-grid">
+          <div>
+            <h2>Settlement Hub</h2>
+            <p>Shards: <strong id="metaShards">0</strong> • Best Floor: <strong id="metaBest">0</strong></p>
+
+            <div class="upgrades">
+              <button class="btn" data-upg="hp">+ Heart Forge (Max HP)</button>
+              <button class="btn" data-upg="dmg">+ War Anvil (Damage)</button>
+              <button class="btn" data-upg="spd">+ Wind Shrine (Speed)</button>
+            </div>
+
+            <details>
+              <summary>Unlocked Classes</summary>
+              <div id="unlocked" class="chips"></div>
+            </details>
+          </div>
+
+          <div>
+            <h2>Begin a Run</h2>
+            <label for="classSelect">Class</label>
+            <select id="classSelect"></select>
+            <label class="inline"><input type="checkbox" id="hardMode"/> Corruption Surge (Harder)</label>
+            <div class="row">
+              <button id="startRun" class="btn primary">▶ Start Run</button>
+              <button id="resetMeta" class="btn danger">Reset Legacy</button>
+            </div>
+            <p id="hubStatus" class="muted"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Game Screen -->
+      <section id="gameScreen" class="hidden">
+        <div class="hud">
+          <span id="floor">Floor 1‑1</span>
+          <span id="relics">Relics: 0</span>
+          <span id="hp">HP: 100/100</span>
+          <span id="shards">Shards: 0</span>
+          <span id="realm">Realm: —</span>
+        </div>
+        <canvas id="game" width="960" height="540" aria-label="Game canvas"></canvas>
+        <div class="controls">
+          <span>Move: WASD/Arrows • Light: J • Heavy: K • Skill: L • Dodge: Space</span>
+          <button id="exitBtn" class="btn">⟲ Exit Run</button>
+        </div>
+      </section>
+
+      <!-- Choice Overlay (Altars) -->
+      <div id="choiceOverlay" class="overlay hidden">
+        <div class="card">
+          <h3 id="choiceTitle">Choose a boon</h3>
+          <div id="choiceList" class="choice-grid"></div>
+        </div>
+      </div>
+
+      <!-- Game Over -->
+      <div id="gameOver" class="overlay hidden">
+        <div class="card">
+          <h2>Run Ended</h2>
+          <p id="goStats"></p>
+          <button id="returnHub" class="btn primary">Return to Hub</button>
+        </div>
+      </div>
+
+      <footer class="center">
+        <small>Daily seed from <code>/api/daily-seed</code> • <code>/health</code> OK</small>
+      </footer>
+    </div>
+    <script type="module" src="/game.js"></script>
+  </body>
+</html>

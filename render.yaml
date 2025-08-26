@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: chronicles-shattered-labyrinth-web
+    env: node
+    plan: free
+    autoDeploy: true
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
