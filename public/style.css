@@ -111,3 +111,4 @@ canvas {
   cursor: pointer;
 }
 .choice-grid .option:hover { filter: brightness(1.05); }
+#gameOver{pointer-events:auto;} #gameOver .card{pointer-events:auto;}

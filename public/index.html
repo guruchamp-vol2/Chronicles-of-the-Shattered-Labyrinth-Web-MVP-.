@@ -75,7 +75,11 @@
         <div class="card">
           <h2>Run Ended</h2>
           <p id="goStats"></p>
-          <button id="returnHub" class="btn primary">Return to Hub</button>
+          <a id="returnHub" class="btn primary" href="/" role="button"
+   onclick="try{window.__returnHub ? window.__returnHub() : (location.href='/')}catch(e){location.href='/'}">
+  Return to Hub
+</a>
+
         </div>
       </div>
 
