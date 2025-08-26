@@ -28,6 +28,20 @@ const gameOverEl = document.getElementById('gameOver');
 const goStatsEl = document.getElementById('goStats');
 const returnHubBtn = document.getElementById('returnHub');
 
+// --- Helpers to toggle screens/overlays robustly
+function hideOverlays() {
+  choiceOverlayEl.classList.add('hidden');
+  gameOverEl.classList.add('hidden');
+}
+function showHub() {
+  gameScreenEl.classList.add('hidden');
+  hubEl.classList.remove('hidden');
+  run = null;
+  renderMeta();
+}
+// Defensive: ensure overlays are hidden on first load
+hideOverlays();
+
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
@@ -209,14 +223,15 @@ function endRun(reason='Fallen') {
 
   goStatsEl.textContent = `${reason}. You reached Floor ${run.floor}-${run.stage}, gained ${shardsGain} shards, relics ${run.relics.length}.`;
   gameOverEl.classList.remove('hidden');
+  // clicking backdrop closes to hub
+  gameOverEl.addEventListener('click', (e) => {
+    if (e.target === gameOverEl) { hideOverlays(); showHub(); }
+  }, { once: true });
 }
 
-returnHubBtn.addEventListener('click', () => {
-  gameOverEl.classList.add('hidden');
-  gameScreenEl.classList.add('hidden');
-  hubEl.classList.remove('hidden');
-  run = null;
-  renderMeta();
+returnHubBtn && returnHubBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation();
+  hideOverlays();
+  showHub();
 });
 
 exitBtn.addEventListener('click', () => endRun('Exit'));
@@ -572,3 +587,12 @@ function openChoice(){
 hubEl.classList.remove('hidden');
 gameScreenEl.classList.add('hidden');
 gameOverEl.classList.add('hidden');
+
+// Escape key: if on game over/choice overlay, close to hub
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (!choiceOverlayEl.classList.contains('hidden') || !gameOverEl.classList.contains('hidden')) {
+      hideOverlays(); showHub();
+    }
+  }
+});
