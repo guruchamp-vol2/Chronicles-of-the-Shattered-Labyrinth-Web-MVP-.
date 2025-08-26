@@ -270,6 +270,18 @@ if (typeof document !== 'undefined') {
 
 if (startRunBtn) startRunBtn.addEventListener('click', startRun);
 
+// Global event delegation to guarantee Return-to-Hub works even if direct binding failed
+document.addEventListener('click', (ev) => {
+  const t = ev.target;
+  if (!t) return;
+  const btn = (t.id === 'returnHub') ? t : (t.closest ? t.closest('#returnHub') : null);
+  if (btn) {
+    ev.preventDefault();
+    forceReturnToHub();
+  }
+});
+
+
 // ------- Entities & Combat
 function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
 
