@@ -1,4 +1,4 @@
-// game.js — Chronicles of the Shattered Labyrinth (Web MVP)
+// game.js — Chronicles of the Shattered Labyrinth (Web MVP, hardened Return-to-Hub)
 import { realms, pickRealmByDate } from './realms.js';
 
 // ------- DOM
@@ -28,23 +28,35 @@ const gameOverEl = document.getElementById('gameOver');
 const goStatsEl = document.getElementById('goStats');
 const returnHubBtn = document.getElementById('returnHub');
 
-// --- Helpers to toggle screens/overlays robustly
-function hideOverlays() {
-  choiceOverlayEl.classList.add('hidden');
-  gameOverEl.classList.add('hidden');
-}
-function showHub() {
-  gameScreenEl.classList.add('hidden');
-  hubEl.classList.remove('hidden');
-  run = null;
-  renderMeta();
-}
-// Defensive: ensure overlays are hidden on first load
-hideOverlays();
-
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
+
+// --- Helpers to toggle screens/overlays robustly
+function hideOverlays() {
+  if (choiceOverlayEl) choiceOverlayEl.classList.add('hidden');
+  if (gameOverEl) gameOverEl.classList.add('hidden');
+}
+function showHub() {
+  if (gameScreenEl) gameScreenEl.classList.add('hidden');
+  if (hubEl) hubEl.classList.remove('hidden');
+  run = null;
+  try { renderMeta(); } catch {}
+}
+function forceReturnToHub() {
+  try {
+    hideOverlays(); showHub();
+    // Validate that hub is visible and game hidden; otherwise fallback
+    const ok = hubEl && !hubEl.classList.contains('hidden');
+    if (!ok) throw new Error('UI toggle failed');
+  } catch (e) {
+    // Absolute fallback (guaranteed): reload to reset state
+    location.replace('/');
+  }
+}
+
+// Defensive: ensure overlays are hidden on first load
+hideOverlays();
 
 // ------- RNG util (mulberry32)
 function rng(seed) {
@@ -62,7 +74,7 @@ const DEFAULT_META = {
   shards: 0,
   bestFloor: 0,
   upgrades: { hp: 0, dmg: 0, spd: 0 },
-  unlocked: ['Warrior', 'Mage', 'Ranger'], // baseline; others unlock later
+  unlocked: ['Warrior', 'Mage', 'Ranger'],
   lastSeedDate: null
 };
 function loadMeta() {
@@ -73,21 +85,25 @@ function saveMeta() { localStorage.setItem('lab_meta', JSON.stringify(meta)); }
 let meta = loadMeta();
 
 function renderMeta() {
-  metaShardsEl.textContent = meta.shards;
-  metaBestEl.textContent = meta.bestFloor;
-  unlockedEl.innerHTML = '';
-  meta.unlocked.forEach(u => {
-    const c = document.createElement('span');
-    c.className = 'chip';
-    c.textContent = u;
-    unlockedEl.appendChild(c);
-  });
-  classSelect.innerHTML = '';
-  meta.unlocked.forEach(u => {
-    const o = document.createElement('option');
-    o.value = u; o.textContent = u;
-    classSelect.appendChild(o);
-  });
+  if (metaShardsEl) metaShardsEl.textContent = meta.shards;
+  if (metaBestEl) metaBestEl.textContent = meta.bestFloor;
+  if (unlockedEl) {
+    unlockedEl.innerHTML = '';
+    meta.unlocked.forEach(u => {
+      const c = document.createElement('span');
+      c.className = 'chip';
+      c.textContent = u;
+      unlockedEl.appendChild(c);
+    });
+  }
+  if (classSelect) {
+    classSelect.innerHTML = '';
+    meta.unlocked.forEach(u => {
+      const o = document.createElement('option');
+      o.value = u; o.textContent = u;
+      classSelect.appendChild(o);
+    });
+  }
 }
 renderMeta();
 
@@ -100,18 +116,18 @@ document.querySelectorAll('.upgrades .btn').forEach(btn => {
       meta.shards -= cost;
       meta.upgrades[key]++;
       saveMeta(); renderMeta();
-      hubStatusEl.textContent = `Upgraded ${key} to ${meta.upgrades[key]}!`;
+      if (hubStatusEl) hubStatusEl.textContent = `Upgraded ${key} to ${meta.upgrades[key]}!`;
     } else {
-      hubStatusEl.textContent = `Not enough shards (cost ${cost}).`;
+      if (hubStatusEl) hubStatusEl.textContent = `Not enough shards (cost ${cost}).`;
     }
   });
 });
 
-resetMetaBtn.addEventListener('click', () => {
+if (resetMetaBtn) resetMetaBtn.addEventListener('click', () => {
   if (!confirm('Reset all legacy progress?')) return;
   meta = { ...DEFAULT_META };
   saveMeta(); renderMeta();
-  hubStatusEl.textContent = 'Legacy reset.';
+  if (hubStatusEl) hubStatusEl.textContent = 'Legacy reset.';
 });
 
 // ------- Classes
@@ -147,13 +163,22 @@ addEventListener('keyup', e => {
   if (e.key === 'l' || e.key === 'L') input.skill = false;
 });
 
+// Escape key: if on game over/choice overlay, close to hub
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const overlayOpen = (choiceOverlayEl && !choiceOverlayEl.classList.contains('hidden'))
+      || (gameOverEl && !gameOverEl.classList.contains('hidden'));
+    if (overlayOpen) forceReturnToHub();
+  }
+});
+
 // ------- Game State
 let run = null;
-let R = Math.random; // RNG function replaced per-run
-let realm = realms[0];
+let R = Math.random;
+let realm = { name:'—', bg:'#0b1228' };
 
 function startRun() {
-  const chosenClass = classSelect.value || 'Warrior';
+  const chosenClass = (classSelect && classSelect.value) || 'Warrior';
   const base = Classes[chosenClass] || Classes.Warrior;
   const hpBonus = meta.upgrades.hp * 10;
   const dmgBonus = meta.upgrades.dmg * 2;
@@ -166,7 +191,7 @@ function startRun() {
     shards: 0,
     relics: [],
     curses: [],
-    hard: !!hardModeEl.checked,
+    hard: !!(hardModeEl && hardModeEl.checked),
     timers: { spawn: 0, relic: 15, boss: 0 },
     player: {
       x: W/2, y: H-80, r: 14,
@@ -203,10 +228,10 @@ function startRun() {
 }
 
 function setupRunUI() {
-  hubEl.classList.add('hidden');
-  gameScreenEl.classList.remove('hidden');
-  realmEl.textContent = `Realm: ${realm.name}`;
-  canvas.style.background = realm.bg;
+  if (hubEl) hubEl.classList.add('hidden');
+  if (gameScreenEl) gameScreenEl.classList.remove('hidden');
+  if (realmEl) realmEl.textContent = `Realm: ${realm.name}`;
+  if (canvas) canvas.style.background = realm.bg;
   updateHud();
   lastTime = performance.now();
   requestAnimationFrame(loop);
@@ -221,22 +246,29 @@ function endRun(reason='Fallen') {
   meta.bestFloor = Math.max(meta.bestFloor, floorVal);
   saveMeta();
 
-  goStatsEl.textContent = `${reason}. You reached Floor ${run.floor}-${run.stage}, gained ${shardsGain} shards, relics ${run.relics.length}.`;
-  gameOverEl.classList.remove('hidden');
-  // clicking backdrop closes to hub
-  gameOverEl.addEventListener('click', (e) => {
-    if (e.target === gameOverEl) { hideOverlays(); showHub(); }
-  }, { once: true });
+  if (goStatsEl) goStatsEl.textContent = `${reason}. You reached Floor ${run.floor}-${run.stage}, gained ${shardsGain} shards, relics ${run.relics.length}.`;
+  if (gameOverEl) {
+    gameOverEl.classList.remove('hidden');
+    // clicking backdrop closes to hub
+    gameOverEl.addEventListener('click', (e) => {
+      if (e.target === gameOverEl) forceReturnToHub();
+    }, { once: true });
+  }
 }
 
-returnHubBtn && returnHubBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation();
-  hideOverlays();
-  showHub();
-});
+if (typeof document !== 'undefined') {
+  // Multiple bindings to be extra safe
+  if (returnHubBtn) {
+    returnHubBtn.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      forceReturnToHub();
+    });
+  }
+  // Also guard the Exit Run button
+  if (exitBtn) exitBtn.addEventListener('click', () => endRun('Exit'));
+}
 
-exitBtn.addEventListener('click', () => endRun('Exit'));
-
-startRunBtn.addEventListener('click', startRun);
+if (startRunBtn) startRunBtn.addEventListener('click', startRun);
 
 // ------- Entities & Combat
 function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
@@ -286,21 +318,17 @@ function useSkill() {
   const p = run.player;
   if (p.cdSkill > 0) return;
   switch (run.className) {
-    case 'Warrior': // Shield: brief invulnerability
-      p.invul = Math.max(p.invul, 1.8);
-      p.cdSkill = 8;
-      break;
-    case 'Mage': // Chrono Blast: projectile to nearest enemy
+    case 'Warrior': p.invul = Math.max(p.invul, 1.8); p.cdSkill = 8; break;
+    case 'Mage':
       p.cdSkill = 6;
       let target = nearestEnemy(p.x, p.y);
       if (target) run.projectiles.push({ x:p.x, y:p.y, vx:(target.x-p.x)/300, vy:(target.y-p.y)/300, r:6, dmg:p.dmg*2, t:0 });
       break;
-    case 'Ranger': // Snare: trap at player location
+    case 'Ranger':
       p.cdSkill = 7;
       run.effects.push({ type:'trap', x:p.x, y:p.y, r:40, t:4 });
       break;
-    default:
-      p.cdSkill = 8;
+    default: p.cdSkill = 8;
   }
 }
 
@@ -360,17 +388,14 @@ function update(dt){
   run.enemies.forEach(e=>{
     e.t += dt;
     e.y += e.speed*dt;
-    // home slightly toward player
     const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx,dy)||1;
     e.x += (dx/d)*e.speed*0.35*dt;
-    // remove offscreen
   });
   run.enemies = run.enemies.filter(e => e.y < H+60 && e.hp > 0);
 
   // projectiles
   run.projectiles.forEach(pr => { pr.t+=dt; pr.x+=pr.vx*300*dt; pr.y+=pr.vy*300*dt; });
   run.projectiles = run.projectiles.filter(pr => pr.t < 2 && pr.x>-20 && pr.x<W+20 && pr.y>-20 && pr.y<H+20);
-  // projectile hit
   run.projectiles.forEach(pr => {
     run.enemies.forEach(e => {
       if (circleHit(pr.x,pr.y,pr.r, e.x,e.y,e.r)) { damageEnemy(e, pr.dmg); pr.t=100; }
@@ -383,7 +408,7 @@ function update(dt){
     ef.t -= dt;
     if (ef.type==='trap'){
       run.enemies.forEach(e=>{
-        if (circleHit(ef.x,ef.y,ef.r, e.x,e.y,e.r)) e.y -= e.speed*0.6*dt; // slow by pulling back
+        if (circleHit(ef.x,ef.y,ef.r, e.x,e.y,e.r)) e.y -= e.speed*0.6*dt;
       });
     }
   });
@@ -394,26 +419,22 @@ function update(dt){
   if (run.boss){
     const b = run.boss;
     b.t += dt;
-    // phase thresholds
     const hpPct = b.hp / (600 + run.floor*120);
     if (hpPct < 0.33) b.phase = 3;
     else if (hpPct < 0.66) b.phase = 2;
 
-    // chase + hazard spawn by phase
     const dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx,dy)||1;
     const chase = (b.phase===1? 60 : b.phase===2? 90 : 120);
     b.x += (dx/d)*chase*dt;
-    // hazard: spawn falling meteors
-    if (R()< (b.phase===1?0.01 : b.phase===2?0.02:0.03)) {
-      run.enemies.push({ kind:'meteor', x:R()*W, y:-40, r:14, hp: 20, speed: 200, t:0 });
+    if (Math.random()< (b.phase===1?0.01 : b.phase===2?0.02:0.03)) {
+      run.enemies.push({ kind:'meteor', x:Math.random()*W, y:-40, r:14, hp: 20, speed: 200, t:0 });
     }
-    // boss collision damage
     if (circleHit(p.x,p.y,p.r, b.x,b.y,b.r)) damagePlayer(14);
     if (b.hp <= 0){
       run.shards += 30;
       run.relics.push('Godspark');
       run.boss = null;
-      nextStage(); // proceed after boss
+      nextStage();
     }
   }
 
@@ -425,7 +446,7 @@ function update(dt){
   // periodic relic/curse choices
   run.timers.relic -= dt;
   if (run.timers.relic <= 0){
-    run.timers.relic = 18 + R()*6;
+    run.timers.relic = 18 + Math.random()*6;
     openChoice();
   }
 
@@ -434,15 +455,15 @@ function update(dt){
   if (!run.boss && run.timers.boss > 30) nextStage();
 
   updateHud();
-
-  // death
   if (p.hp <= 0) endRun('Fallen');
 }
 
 function damagePlayer(amount){
   const p = run.player;
   if (p.invul > 0) return;
-  p.hp -= amount;
+  // fragile curse support
+  const extra = run.curseFragile ? (1+run.curseFragile) : 1;
+  p.hp -= amount * extra;
   p.invul = 0.8;
 }
 
@@ -452,20 +473,19 @@ function nextStage(){
   if (run.stage > 3){
     run.stage = 1;
     run.floor++;
-    // small heal + ramp difficulty
     run.player.hp = Math.min(run.player.maxhp, run.player.hp + 20);
   }
 }
 
 function updateHud(){
-  floorEl.textContent = `Floor ${run.floor}-${run.stage}`;
-  relicsEl.textContent = `Relics: ${run.relics.length}`;
-  hpEl.textContent = `HP: ${Math.max(0,Math.floor(run.player.hp))}/${run.player.maxhp}`;
-  shardsEl.textContent = `Shards: ${run.shards}`;
+  if (!run) return;
+  if (floorEl) floorEl.textContent = `Floor ${run.floor}-${run.stage}`;
+  if (relicsEl) relicsEl.textContent = `Relics: ${run.relics.length}`;
+  if (hpEl) hpEl.textContent = `HP: ${Math.max(0,Math.floor(run.player.hp))}/${run.player.maxhp}`;
+  if (shardsEl) shardsEl.textContent = `Shards: ${run.shards}`;
 }
 
 function draw(){
-  // bg grid
   ctx.clearRect(0,0,W,H);
   ctx.globalAlpha = 0.12;
   ctx.fillStyle = '#64748b';
@@ -473,7 +493,6 @@ function draw(){
   for (let y=0;y<H;y+=40) ctx.fillRect(0,y,W,1);
   ctx.globalAlpha = 1;
 
-  // player
   const p = run.player;
   ctx.beginPath();
   ctx.fillStyle = '#9ece6a';
@@ -485,20 +504,17 @@ function draw(){
     ctx.setLineDash([]);
   }
 
-  // enemies
   run.enemies.forEach(e => {
     ctx.beginPath();
     ctx.fillStyle = e.kind==='brute' ? '#d97706' : e.kind==='meteor' ? '#a855f7' : '#7aa2f7';
     ctx.arc(e.x,e.y,e.r,0,Math.PI*2); ctx.fill();
   });
 
-  // boss
   if (run.boss){
     const b = run.boss;
     ctx.beginPath();
     ctx.fillStyle = '#ef4444';
     ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
-    // hp bar
     ctx.fillStyle = 'rgba(0,0,0,.5)';
     ctx.fillRect(W*0.2, 20, W*0.6, 10);
     ctx.fillStyle = '#ef4444';
@@ -506,14 +522,12 @@ function draw(){
     ctx.fillRect(W*0.2, 20, (b.hp/maxHp)*W*0.6, 10);
   }
 
-  // projectiles
   run.projectiles.forEach(pr => {
     ctx.beginPath();
     ctx.fillStyle = '#60a5fa';
     ctx.arc(pr.x,pr.y,pr.r,0,Math.PI*2); ctx.fill();
   });
 
-  // effects
   run.effects.forEach(ef => {
     if (ef.type==='slash'){
       ctx.globalAlpha = 0.6;
@@ -551,13 +565,14 @@ const CURSE_POOL = [
 ];
 
 function openChoice(){
+  if (!choiceListEl || !choiceOverlayEl) return;
   choiceListEl.innerHTML='';
   choiceTitleEl.textContent = 'Choose a Relic or accept a Curse for more shards';
   const opts = [];
   const picks = new Set();
-  while (picks.size < 2) picks.add(Math.floor(R()*RELIC_POOL.length));
+  while (picks.size < 2) picks.add(Math.floor(Math.random()*RELIC_POOL.length));
   [...picks].forEach(i => opts.push({ type:'relic', ...RELIC_POOL[i] }));
-  const curse = CURSE_POOL[Math.floor(R()*CURSE_POOL.length)];
+  const curse = CURSE_POOL[Math.floor(Math.random()*CURSE_POOL.length)];
   opts.push({ type:'curse', ...curse });
 
   opts.forEach(o => {
@@ -570,7 +585,7 @@ function openChoice(){
         run.relics.push(o.name);
       } else {
         o.apply(run);
-        run.shards += 8; // reward for curse
+        run.shards += 8;
       }
       choiceOverlayEl.classList.add('hidden');
     });
@@ -579,20 +594,7 @@ function openChoice(){
   choiceOverlayEl.classList.remove('hidden');
 }
 
-// ------- Minor relic/curses side-effects
-// Apply damage bonus from upgrades
-// (already applied to base stats at start; additional effects handled in apply())
-
-// ------- Start on hub
-hubEl.classList.remove('hidden');
-gameScreenEl.classList.add('hidden');
-gameOverEl.classList.add('hidden');
-
-// Escape key: if on game over/choice overlay, close to hub
-addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    if (!choiceOverlayEl.classList.contains('hidden') || !gameOverEl.classList.contains('hidden')) {
-      hideOverlays(); showHub();
-    }
-  }
-});
+// ------- Initialize on hub
+hubEl && hubEl.classList.remove('hidden');
+gameScreenEl && gameScreenEl.classList.add('hidden');
+gameOverEl && gameOverEl.classList.add('hidden');
