@@ -44,6 +44,7 @@ function showHub() {
   try { renderMeta(); } catch {}
 }
 function forceReturnToHub() {
+  window.__returnHub = forceReturnToHub; // expose globally
   try {
     hideOverlays(); showHub();
     // Validate that hub is visible and game hidden; otherwise fallback
@@ -269,6 +270,26 @@ if (typeof document !== 'undefined') {
 }
 
 if (startRunBtn) startRunBtn.addEventListener('click', startRun);
+
+// Capture-phase delegation so we catch the click even if something stops propagation
+document.addEventListener('click', (ev) => {
+  const t = ev.target;
+  const isBtn = t && (t.id === 'returnHub' || (t.closest && t.closest('#returnHub')));
+  if (isBtn) {
+    ev.preventDefault();
+    try { forceReturnToHub(); } catch { location.replace('/'); }
+  }
+}, true);
+
+// Keyboard support on focused button
+document.addEventListener('keydown', (ev) => {
+  const active = document.activeElement;
+  if ((ev.key === 'Enter' || ev.key === ' ') && active && (active.id === 'returnHub')) {
+    ev.preventDefault();
+    try { forceReturnToHub(); } catch { location.replace('/'); }
+  }
+});
+
 
 // Global event delegation to guarantee Return-to-Hub works even if direct binding failed
 document.addEventListener('click', (ev) => {
